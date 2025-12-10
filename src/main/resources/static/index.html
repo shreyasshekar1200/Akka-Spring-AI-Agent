@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>RAG Agent - Day 3</title>
+        <style>
+            body {
+                font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+                background-color: #f4f4f9;
+                display: flex;
+                justify-content: center;
+                height: 100vh;
+                margin: 0;
+            }
+            .chat-container {
+                width: 500px;
+                background: white;
+                border-radius: 10px;
+                box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+                display: flex;
+                flex-direction: column;
+                overflow: hidden;
+                margin-top: 50px;
+                height: 80vh;
+            }
+            .chat-header {
+                background: #2c3e50;
+                color: white;
+                padding: 20px;
+                text-align: center;
+                font-size: 1.2rem;
+                font-weight: bold;
+            }
+            .chat-box {
+                flex: 1;
+                padding: 20px;
+                overflow-y: auto;
+                display: flex;
+                flex-direction: column;
+                gap: 15px;
+            }
+            .message {
+                padding: 10px 15px;
+                border-radius: 20px;
+                max-width: 80%;
+                line-height: 1.5;
+            }
+            .user-message {
+                background-color: #3498db;
+                color: white;
+                align-self: flex-end;
+                border-bottom-right-radius: 5px;
+            }
+            .ai-message {
+                background-color: #eecda3;
+                color: #333;
+                align-self: flex-start;
+                border-bottom-left-radius: 5px;
+            }
+            .input-area {
+                padding: 20px;
+                border-top: 1px solid #ddd;
+                display: flex;
+                gap: 10px;
+                background: #fff;
+            }
+            input {
+                flex: 1;
+                padding: 10px;
+                border: 1px solid #ddd;
+                border-radius: 20px;
+                outline: none;
+            }
+            button {
+                padding: 10px 20px;
+                background: #2c3e50;
+                color: white;
+                border: none;
+                border-radius: 20px;
+                cursor: pointer;
+                transition: background 0.2s;
+            }
+            button:hover {
+                background: #34495e;
+            }
+            .loading {
+                font-style: italic;
+                color: #888;
+                font-size: 0.9rem;
+                align-self: flex-start;
+                display: none;
+                margin-left: 10px;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="chat-container">
+            <div class="chat-header">
+                <span>RAG Knowledge Assistant</span>
+                <div style="margin-top: 10px; font-size: 0.9rem">
+                    <input
+                        type="file"
+                        id="fileInput"
+                        style="display: none"
+                        onchange="uploadFile()"
+                    />
+                    <button
+                        onclick="document.getElementById('fileInput').click()"
+                        style="
+                            background: white;
+                            color: #2c3e50;
+                            padding: 5px 10px;
+                            font-size: 0.8rem;
+                        "
+                    >
+                        + Upload New Doc
+                    </button>
+                    <span
+                        id="uploadStatus"
+                        style="font-weight: normal; margin-left: 10px"
+                    ></span>
+                </div>
+            </div>
+            <div class="chat-box" id="chatBox">
+                <div class="message ai-message">
+                    Hello! I've read your document. What would you like to know?
+                </div>
+            </div>
+            <div class="loading" id="loadingIndicator">Thinking...</div>
+            <div class="input-area">
+                <input
+                    type="text"
+                    id="userInput"
+                    placeholder="Ask a question..."
+                    onkeypress="handleEnter(event)"
+                />
+                <button onclick="sendMessage()">Send</button>
+            </div>
+        </div>
+
+        <script>
+            async function sendMessage() {
+                const inputField = document.getElementById("userInput");
+                const chatBox = document.getElementById("chatBox");
+                const loading = document.getElementById("loadingIndicator");
+                const query = inputField.value.trim();
+
+                if (!query) return;
+
+                // 1. Add User Message
+                appendMessage(query, "user-message");
+                inputField.value = "";
+                loading.style.display = "block";
+
+                // 2. Create Placeholder
+                const aiMessageDiv = document.createElement("div");
+                aiMessageDiv.className = "message ai-message";
+                chatBox.appendChild(aiMessageDiv);
+
+                try {
+                    const response = await fetch(
+                        `/ask?query=${encodeURIComponent(query)}`,
+                    );
+                    const reader = response.body.getReader();
+                    const decoder = new TextDecoder();
+
+                    loading.style.display = "none";
+
+                    while (true) {
+                        const { done, value } = await reader.read();
+                        if (done) break;
+
+                        const rawChunk = decoder.decode(value, {
+                            stream: true,
+                        });
+
+                        // --- THE FIX ---
+                        // 1. Remove "data:" prefix
+                        // 2. Remove the trailing newlines (\n\n) that SSE adds
+                        const cleanChunk = rawChunk
+                            .replaceAll("data:", "")
+                            .replaceAll("\n\n", "");
+                        // ----------------
+
+                        aiMessageDiv.textContent += cleanChunk;
+                        chatBox.scrollTop = chatBox.scrollHeight;
+                    }
+                } catch (error) {
+                    loading.style.display = "none";
+                    console.error(error);
+                    aiMessageDiv.textContent += " [Error connecting]";
+                }
+            }
+
+            function appendMessage(text, className) {
+                const chatBox = document.getElementById("chatBox");
+                const div = document.createElement("div");
+                div.className = `message ${className}`;
+                div.textContent = text;
+                chatBox.appendChild(div);
+                chatBox.scrollTop = chatBox.scrollHeight;
+            }
+
+            function handleEnter(event) {
+                if (event.key === "Enter") sendMessage();
+            }
+
+            async function uploadFile() {
+                const fileInput = document.getElementById("fileInput");
+                const statusSpan = document.getElementById("uploadStatus");
+                const file = fileInput.files[0];
+
+                if (!file) return;
+
+                statusSpan.textContent = "Uploading...";
+                const formData = new FormData();
+                formData.append("file", file);
+
+                try {
+                    const response = await fetch("/upload", {
+                        method: "POST",
+                        body: formData,
+                    });
+                    const result = await response.text();
+                    statusSpan.textContent = "✅ Done!";
+                    appendMessage(`System: ${result}`, "ai-message");
+                } catch (error) {
+                    statusSpan.textContent = "❌ Error";
+                    console.error(error);
+                }
+            }
+        </script>
+    </body>
+</html>

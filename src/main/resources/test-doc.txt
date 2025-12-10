@@ -1,0 +1,15 @@
+PROJECT PROPOSAL: DISTRIBUTED
+AKKA CLUSTER FOR LOCAL RAG &
+KNOWLEDGE RETRIEVAL
+1. Introduction and Motivation
+In professional and academic environments, individuals accumulate vast libraries of local
+documents (PDFs, research papers, notes). Standard keyword search is insufficient for
+synthesizing answers or summarizing these complex materials.
+This project proposes a distributed, domain-specific conversational agent designed to
+serve as a "Personal Knowledge Assistant." The system will allow users to "talk" to their local
+documents, providing accurate summaries and answers with specific source citations
+(filename, page number).
+Technically, this project will demonstrate a robust Akka Cluster architecture. It will leverage
+Spring AI and Ollama for privacy-preserving local LLM processing and Neo4j as a Vector
+Database. The system will be deployed across two distinct cluster nodes to simulate a
+decoupled, scalable microservices environment.
