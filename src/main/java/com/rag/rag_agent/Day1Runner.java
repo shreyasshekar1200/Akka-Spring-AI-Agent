@@ -44,8 +44,6 @@ public class Day1Runner implements CommandLineRunner {
         System.out.println(
             "--- INGESTION COMPLETE: " + chunks.size() + " chunks stored ---"
         );
-        System.out.println(
-            "Server is ready! Go to: http://localhost:8080/ask?query=YourQuestion"
-        );
+        System.out.println("Server is ready! Go to: http://localhost:8080");
     }
 }
