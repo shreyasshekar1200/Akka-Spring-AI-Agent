@@ -32,12 +32,10 @@ public class RagService {
         this.vectorStore = vectorStore;
         this.searchTools = searchTools;
 
-        // The builder includes the Chat Memory advisor to remember previous questions in the session
         this.chatClient = chatClientBuilder
             .defaultAdvisors(
                 MessageChatMemoryAdvisor.builder(chatMemory).build()
             )
-            // .defaultTools(searchTools)
             .build();
     }
 
@@ -72,7 +70,37 @@ public class RagService {
     }
 
     public Flux<String> generateAnswer(String query) {
-        // 1. Search Neo4j for local context
+        // 1. Quick intent check — does this query need a live web search?
+        String intentCheck = chatClient
+            .prompt()
+            .system(
+                "You are a routing assistant. Reply with only YES or NO. NO means the query can be answered from training knowledge or provided documents. YES means it requires real-time internet data."
+            )
+            .user(
+                "Does this query require real-time internet search to answer accurately? Query: " +
+                    query
+            )
+            .call()
+            .content();
+
+        boolean needsSearch =
+            intentCheck != null &&
+            intentCheck.trim().toUpperCase().startsWith("YES");
+
+        // 2. Conditionally call web search
+        String webContext = "";
+        if (needsSearch) {
+            System.out.println(">>> WEB SEARCH TRIGGERED FOR: " + query);
+            String searchResult = searchTools.searchWeb(query);
+
+            if ("NETWORK_UNAVAILABLE".equals(searchResult)) {
+                webContext = "NETWORK_UNAVAILABLE";
+            } else {
+                webContext = searchResult;
+            }
+        }
+
+        // 3. Search Neo4j for local document context
         List<Document> similarDocs = vectorStore.similaritySearch(
             SearchRequest.builder()
                 .query(query)
@@ -81,14 +109,14 @@ public class RagService {
                 .build()
         );
 
-        String context = similarDocs.isEmpty()
+        String localContext = similarDocs.isEmpty()
             ? ""
             : similarDocs
                   .stream()
                   .map(Document::getText)
                   .collect(Collectors.joining("\n\n"));
 
-        // 2. Build a high-quality System Prompt to fix the "clustered" text
+        // 4. Build system prompt
         String systemInstruction = """
             You are Shreyas's Personal AI Workstation Assistant.
 
@@ -99,38 +127,31 @@ public class RagService {
             - Keep your tone professional, helpful, and concise.
 
             KNOWLEDGE GUIDELINES:
-            - If context is provided below, prioritize it.
-            - If you don't know the answer and there is no context, admit it,
-              but offer to help search or explain related concepts.
+            - Prioritize provided context over your training data.
+            - If no context is provided, answer from your training knowledge.
             """;
 
         String finalSystemMessage =
             systemInstruction +
-            (context.isEmpty()
-                ? "\n\n(No local documents found for this query. Use your general knowledge.)"
-                : "\n\nUse this local document context to answer:\n" + context);
+            (localContext.isEmpty()
+                ? ""
+                : "\n\n**Local Documents:**\n" + localContext) +
+            (webContext.equals("NETWORK_UNAVAILABLE")
+                ? "\n\n**Note:** This query requires internet access but the system is currently offline. Inform the user clearly that you cannot answer this question without an internet connection."
+                : webContext.isEmpty()
+                    ? ""
+                    : "\n\n**Live Web Search Results:**\n" + webContext);
 
-        // 3. Stream the response back to the UI
+        // 5. Final answer
         String answer = chatClient
             .prompt()
             .system(finalSystemMessage)
             .user(query)
-            .tools(searchTools)
-            .call() // blocking call — executes the full tool loop
+            .call()
             .content();
 
         return Flux.just(
             answer != null ? answer : "I'm sorry, I couldn't find an answer."
         );
-        // return chatClient
-        //     .prompt()
-        //     .system(finalSystemMessage)
-        //     .user(query)
-        //     .tools(searchTools)
-        //     .stream()
-        //     .content();
-        // .call();
-        // .map(Flux::just)
-        // .orElse(Flux.just("I'm sorry, I coudn't find an answer."));
     }
 }

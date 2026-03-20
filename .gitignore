@@ -40,3 +40,4 @@ buildNumber
 .idea/
 *.iml
 .DS_Store
+application.properties
