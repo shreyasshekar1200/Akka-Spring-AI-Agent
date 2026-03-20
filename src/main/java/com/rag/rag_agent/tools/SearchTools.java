@@ -85,10 +85,10 @@ public class SearchTools {
             );
             return extracted;
         } catch (ResourceAccessException e) {
-            System.out.println(">>> NETWORK UNAVAILABLE: " + e.getMessage());
+            System.out.println(">>> NETWORK UNAVAILABLE:" + e.getMessage());
             return "NETWORK_UNAVAILABLE";
         } catch (Exception e) {
-            System.out.println(">>> SEARCH FAILED: " + e.getMessage());
+            System.out.println(">>> SEARCH FAILED:" + e.getMessage());
             return "NETWORK_UNAVAILABLE";
         }
     }
