@@ -139,7 +139,7 @@
                 try {
                     // Adjust this endpoint to match your Akka/Spring controller
                     const response = await fetch(
-                        `/api/chat?query=${encodeURIComponent(query)}`,
+                        `/api/ask?query=${encodeURIComponent(query)}`,
                     );
                     const data = await response.text();
                     appendMessage("ai", data);

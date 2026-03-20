@@ -37,7 +37,7 @@ public class RagService {
             .defaultAdvisors(
                 MessageChatMemoryAdvisor.builder(chatMemory).build()
             )
-            .defaultTools(searchTools)
+            // .defaultTools(searchTools)
             .build();
     }
 
@@ -111,12 +111,26 @@ public class RagService {
                 : "\n\nUse this local document context to answer:\n" + context);
 
         // 3. Stream the response back to the UI
-        return chatClient
+        String answer = chatClient
             .prompt()
             .system(finalSystemMessage)
             .user(query)
-            // .tools(searchTools)
-            .stream()
+            .tools(searchTools)
+            .call() // blocking call — executes the full tool loop
             .content();
+
+        return Flux.just(
+            answer != null ? answer : "I'm sorry, I couldn't find an answer."
+        );
+        // return chatClient
+        //     .prompt()
+        //     .system(finalSystemMessage)
+        //     .user(query)
+        //     .tools(searchTools)
+        //     .stream()
+        //     .content();
+        // .call();
+        // .map(Flux::just)
+        // .orElse(Flux.just("I'm sorry, I coudn't find an answer."));
     }
 }
