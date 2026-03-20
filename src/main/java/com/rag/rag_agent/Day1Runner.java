@@ -31,19 +31,16 @@ public class Day1Runner implements CommandLineRunner {
 
     @Override
     public void run(String... args) throws Exception {
-        System.out.println("--- INGESTION STARTED ---");
-
-        // 1. Ingest content
-        TikaDocumentReader reader = new TikaDocumentReader(testDoc);
-        List<Document> documents = reader.get();
-        TokenTextSplitter splitter = new TokenTextSplitter();
-        List<Document> chunks = splitter.apply(documents);
-
-        this.vectorStore.add(chunks);
-
-        System.out.println(
-            "--- INGESTION COMPLETE: " + chunks.size() + " chunks stored ---"
-        );
-        System.out.println("Server is ready! Go to: http://localhost:8080");
+        // System.out.println("--- INGESTION STARTED ---");
+        // // 1. Ingest content
+        // TikaDocumentReader reader = new TikaDocumentReader(testDoc);
+        // List<Document> documents = reader.get();
+        // TokenTextSplitter splitter = new TokenTextSplitter();
+        // List<Document> chunks = splitter.apply(documents);
+        // this.vectorStore.add(chunks);
+        // System.out.println(
+        //     "--- INGESTION COMPLETE: " + chunks.size() + " chunks stored ---"
+        // );
+        // System.out.println("Server is ready! Go to: http://localhost:8080");
     }
 }

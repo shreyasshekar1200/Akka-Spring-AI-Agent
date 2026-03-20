@@ -1,14 +1,12 @@
 package com.rag.rag_agent;
 
+import com.rag.rag_agent.tools.SearchTools;
 import java.util.List;
 import java.util.stream.Collectors;
-// 1. Clean Imports
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
 import org.springframework.ai.chat.memory.ChatMemory;
-// We removed InMemoryChatMemory import to avoid the error
 import org.springframework.ai.document.Document;
-import org.springframework.ai.reader.pdf.PagePdfDocumentReader;
 import org.springframework.ai.reader.tika.TikaDocumentReader;
 import org.springframework.ai.transformer.splitter.TokenTextSplitter;
 import org.springframework.ai.vectorstore.SearchRequest;
@@ -23,81 +21,102 @@ public class RagService {
 
     private final VectorStore vectorStore;
     private final ChatClient chatClient;
+    private final SearchTools searchTools;
 
     public RagService(
         VectorStore vectorStore,
         ChatClient.Builder chatClientBuilder,
-        ChatMemory chatMemory // <--- FIX 1: Let Spring inject the memory
+        ChatMemory chatMemory,
+        SearchTools searchTools
     ) {
         this.vectorStore = vectorStore;
+        this.searchTools = searchTools;
 
-        // <--- FIX 2: Use the Builder Pattern instead of 'new'
+        // The builder includes the Chat Memory advisor to remember previous questions in the session
         this.chatClient = chatClientBuilder
             .defaultAdvisors(
                 MessageChatMemoryAdvisor.builder(chatMemory).build()
             )
+            .defaultTools(searchTools)
             .build();
     }
 
-    public String ingestFile(MultipartFile file) {
+    public String ingestFiles(List<MultipartFile> files) {
+        int totalChunks = 0;
         try {
-            List<Document> documents;
-            String filename = file.getOriginalFilename();
+            for (MultipartFile file : files) {
+                TikaDocumentReader reader = new TikaDocumentReader(
+                    new ByteArrayResource(file.getBytes())
+                );
+                List<Document> docs = reader.get();
 
-            if (filename != null && filename.toLowerCase().endsWith(".pdf")) {
-                PagePdfDocumentReader pdfReader = new PagePdfDocumentReader(
-                    new ByteArrayResource(file.getBytes())
+                docs.forEach(d ->
+                    d.getMetadata().put("source", file.getOriginalFilename())
                 );
-                documents = pdfReader.get();
-            } else {
-                TikaDocumentReader tikaReader = new TikaDocumentReader(
-                    new ByteArrayResource(file.getBytes())
-                );
-                documents = tikaReader.get();
+
+                TokenTextSplitter splitter = new TokenTextSplitter();
+                List<Document> splitDocs = splitter.apply(docs);
+                vectorStore.add(splitDocs);
+                totalChunks += splitDocs.size();
             }
-
-            TokenTextSplitter splitter = new TokenTextSplitter();
-            List<Document> splitDocs = splitter.apply(documents);
-            vectorStore.add(splitDocs);
-
             return (
-                "Success! Processed " +
-                splitDocs.size() +
-                " chunks from " +
-                filename
+                "Successfully processed " +
+                files.size() +
+                " files into " +
+                totalChunks +
+                " chunks."
             );
         } catch (Exception e) {
-            throw new RuntimeException("Failed to ingest file", e);
+            return "Failed to ingest files: " + e.getMessage();
         }
     }
 
     public Flux<String> generateAnswer(String query) {
+        // 1. Search Neo4j for local context
         List<Document> similarDocs = vectorStore.similaritySearch(
-            SearchRequest.builder().query(query).topK(50).build()
+            SearchRequest.builder()
+                .query(query)
+                .topK(5)
+                .similarityThreshold(0.7)
+                .build()
         );
 
         String context = similarDocs.isEmpty()
-            ? "No specific context found."
+            ? ""
             : similarDocs
                   .stream()
                   .map(Document::getText)
                   .collect(Collectors.joining("\n\n"));
 
-        String prompt = String.format(
-            """
-            You are a helpful assistant. Answer the question based on the following context.
+        // 2. Build a high-quality System Prompt to fix the "clustered" text
+        String systemInstruction = """
+            You are Shreyas's Personal AI Workstation Assistant.
 
-            Context:
-            %s
+            FORMATTING RULES:
+            - Use double line breaks between paragraphs for readability.
+            - Use **Bold Headers** for steps or categories.
+            - Use Markdown code blocks (```bash) for Linux commands.
+            - Keep your tone professional, helpful, and concise.
 
-            Question:
-            %s
-            """,
-            context,
-            query
-        );
+            KNOWLEDGE GUIDELINES:
+            - If context is provided below, prioritize it.
+            - If you don't know the answer and there is no context, admit it,
+              but offer to help search or explain related concepts.
+            """;
 
-        // Simple prompt call (The Advisor handles the memory keys automatically now)
-        return chatClient.prompt(prompt).stream().content();
+        String finalSystemMessage =
+            systemInstruction +
+            (context.isEmpty()
+                ? "\n\n(No local documents found for this query. Use your general knowledge.)"
+                : "\n\nUse this local document context to answer:\n" + context);
+
+        // 3. Stream the response back to the UI
+        return chatClient
+            .prompt()
+            .system(finalSystemMessage)
+            .user(query)
+            // .tools(searchTools)
+            .stream()
+            .content();
     }
 }

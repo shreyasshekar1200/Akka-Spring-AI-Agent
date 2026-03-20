@@ -3,233 +3,158 @@
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>RAG Agent - Day 3</title>
+        <title>RAG Agent Workstation - Dark Mode</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.2/marked.min.js"></script>
         <style>
-            body {
-                font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
-                background-color: #f4f4f9;
-                display: flex;
-                justify-content: center;
-                height: 100vh;
-                margin: 0;
+            /* Custom scrollbar for dark mode */
+            ::-webkit-scrollbar {
+                width: 8px;
             }
-            .chat-container {
-                width: 500px;
-                background: white;
-                border-radius: 10px;
-                box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
-                display: flex;
-                flex-direction: column;
-                overflow: hidden;
-                margin-top: 50px;
-                height: 80vh;
+            ::-webkit-scrollbar-track {
+                background: #1f2937;
             }
-            .chat-header {
-                background: #2c3e50;
-                color: white;
-                padding: 20px;
-                text-align: center;
-                font-size: 1.2rem;
-                font-weight: bold;
+            ::-webkit-scrollbar-thumb {
+                background: #4b5563;
+                border-radius: 4px;
             }
-            .chat-box {
-                flex: 1;
-                padding: 20px;
-                overflow-y: auto;
-                display: flex;
-                flex-direction: column;
-                gap: 15px;
+
+            /* High-contrast code blocks */
+            #chat-window pre {
+                background-color: #111827 !important;
+                border: 1px solid #374151;
+                padding: 1rem;
+                border-radius: 0.5rem;
+                margin: 0.5rem 0;
+                overflow-x: auto;
             }
-            .message {
-                padding: 10px 15px;
-                border-radius: 20px;
-                max-width: 80%;
-                line-height: 1.5;
+            #chat-window code {
+                color: #10b981; /* Emerald green for code text */
+                font-family: "Fira Code", monospace;
             }
-            .user-message {
-                background-color: #3498db;
+            .user-msg {
+                background-color: #3b82f6;
                 color: white;
                 align-self: flex-end;
-                border-bottom-right-radius: 5px;
             }
-            .ai-message {
-                background-color: #eecda3;
-                color: #333;
+            .ai-msg {
+                background-color: #374151;
+                color: #f3f4f6;
                 align-self: flex-start;
-                border-bottom-left-radius: 5px;
-            }
-            .input-area {
-                padding: 20px;
-                border-top: 1px solid #ddd;
-                display: flex;
-                gap: 10px;
-                background: #fff;
-            }
-            input {
-                flex: 1;
-                padding: 10px;
-                border: 1px solid #ddd;
-                border-radius: 20px;
-                outline: none;
-            }
-            button {
-                padding: 10px 20px;
-                background: #2c3e50;
-                color: white;
-                border: none;
-                border-radius: 20px;
-                cursor: pointer;
-                transition: background 0.2s;
-            }
-            button:hover {
-                background: #34495e;
-            }
-            .loading {
-                font-style: italic;
-                color: #888;
-                font-size: 0.9rem;
-                align-self: flex-start;
-                display: none;
-                margin-left: 10px;
             }
         </style>
     </head>
-    <body>
-        <div class="chat-container">
-            <div class="chat-header">
-                <span>RAG Knowledge Assistant</span>
-                <div style="margin-top: 10px; font-size: 0.9rem">
-                    <input
-                        type="file"
-                        id="fileInput"
-                        style="display: none"
-                        onchange="uploadFile()"
-                    />
-                    <button
-                        onclick="document.getElementById('fileInput').click()"
-                        style="
-                            background: white;
-                            color: #2c3e50;
-                            padding: 5px 10px;
-                            font-size: 0.8rem;
-                        "
-                    >
-                        + Upload New Doc
-                    </button>
-                    <span
-                        id="uploadStatus"
-                        style="font-weight: normal; margin-left: 10px"
-                    ></span>
+    <body
+        class="bg-gray-900 text-gray-100 min-h-screen flex flex-col items-center p-4"
+    >
+        <header class="w-full max-w-4xl text-center mb-6">
+            <h1
+                class="text-3xl font-bold flex items-center justify-center gap-3"
+            >
+                🧠
+                <span
+                    class="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-emerald-400"
+                    >RAG Agent Workstation</span
+                >
+            </h1>
+        </header>
+
+        <main
+            class="w-full max-w-4xl bg-gray-800 border border-gray-700 rounded-xl shadow-2xl flex flex-col overflow-hidden h-[600px]"
+        >
+            <div
+                id="chat-window"
+                class="flex-1 overflow-y-auto p-6 flex flex-col gap-4"
+            >
+                <div class="ai-msg p-4 rounded-lg max-w-[80%] shadow-sm">
+                    Hello! I am your updated AI assistant (Llama 3.1). I can now
+                    handle tool calls and searches. How can I help?
                 </div>
             </div>
-            <div class="chat-box" id="chatBox">
-                <div class="message ai-message">
-                    Hello! I've read your document. What would you like to know?
-                </div>
-            </div>
-            <div class="loading" id="loadingIndicator">Thinking...</div>
-            <div class="input-area">
+
+            <div class="p-4 bg-gray-900 border-t border-gray-700 flex gap-2">
                 <input
                     type="text"
-                    id="userInput"
+                    id="user-input"
                     placeholder="Ask a question..."
-                    onkeypress="handleEnter(event)"
+                    class="flex-1 bg-gray-800 border border-gray-600 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
-                <button onclick="sendMessage()">Send</button>
+                <button
+                    onclick="sendMessage()"
+                    class="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded-lg font-semibold transition"
+                >
+                    Send
+                </button>
             </div>
-        </div>
+        </main>
+
+        <section
+            class="w-full max-w-4xl mt-6 p-6 bg-gray-800 rounded-xl border border-gray-700 border-dashed"
+        >
+            <h2 class="text-xl font-semibold mb-4 text-center">
+                Knowledge Staging Area
+            </h2>
+            <div class="flex flex-col items-center gap-4">
+                <button
+                    class="bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded border border-gray-500 text-sm"
+                >
+                    + Select Files
+                </button>
+                <button
+                    class="w-full bg-emerald-700 hover:bg-emerald-600 py-2 rounded-lg font-bold"
+                >
+                    Ingest Staged Files (0)
+                </button>
+            </div>
+        </section>
+
+        <footer class="w-full max-w-4xl mt-4">
+            <button
+                class="w-full bg-red-900/30 border border-red-700 text-red-400 py-2 rounded-lg hover:bg-red-900/50 transition text-sm italic"
+            >
+                🚀 START QLoRA TRAINING (Unloads Model)
+            </button>
+        </footer>
 
         <script>
-            async function sendMessage() {
-                const inputField = document.getElementById("userInput");
-                const chatBox = document.getElementById("chatBox");
-                const loading = document.getElementById("loadingIndicator");
-                const query = inputField.value.trim();
+            const chatWindow = document.getElementById("chat-window");
+            const userInput = document.getElementById("user-input");
 
+            function appendMessage(role, text) {
+                const div = document.createElement("div");
+                div.className = `${role}-msg p-4 rounded-lg max-w-[80%] shadow-sm`;
+                // Use marked to render Markdown/Code blocks
+                div.innerHTML = marked.parse(text);
+                chatWindow.appendChild(div);
+                chatWindow.scrollTop = chatWindow.scrollHeight;
+            }
+
+            async function sendMessage() {
+                const query = userInput.value;
                 if (!query) return;
 
-                // 1. Add User Message
-                appendMessage(query, "user-message");
-                inputField.value = "";
-                loading.style.display = "block";
-
-                // 2. Create Placeholder
-                const aiMessageDiv = document.createElement("div");
-                aiMessageDiv.className = "message ai-message";
-                chatBox.appendChild(aiMessageDiv);
+                appendMessage("user", query);
+                userInput.value = "";
 
                 try {
+                    // Adjust this endpoint to match your Akka/Spring controller
                     const response = await fetch(
-                        `/ask?query=${encodeURIComponent(query)}`,
+                        `/api/chat?query=${encodeURIComponent(query)}`,
                     );
-                    const reader = response.body.getReader();
-                    const decoder = new TextDecoder();
-
-                    loading.style.display = "none";
-
-                    while (true) {
-                        const { done, value } = await reader.read();
-                        if (done) break;
-
-                        const rawChunk = decoder.decode(value, {
-                            stream: true,
-                        });
-
-                        // --- THE FIX ---
-                        // 1. Remove "data:" prefix
-                        // 2. Remove the trailing newlines (\n\n) that SSE adds
-                        const cleanChunk = rawChunk
-                            .replaceAll("data:", "")
-                            .replaceAll("\n\n", "");
-                        // ----------------
-
-                        aiMessageDiv.textContent += cleanChunk;
-                        chatBox.scrollTop = chatBox.scrollHeight;
-                    }
+                    const data = await response.text();
+                    appendMessage("ai", data);
                 } catch (error) {
-                    loading.style.display = "none";
-                    console.error(error);
-                    aiMessageDiv.textContent += " [Error connecting]";
+                    appendMessage(
+                        "ai",
+                        "Error: Could not connect to the service.",
+                    );
                 }
             }
 
-            function appendMessage(text, className) {
-                const chatBox = document.getElementById("chatBox");
-                const div = document.createElement("div");
-                div.className = `message ${className}`;
-                div.textContent = text;
-                chatBox.appendChild(div);
-                chatBox.scrollTop = chatBox.scrollHeight;
-            }
-
-            function handleEnter(event) {
+            // Allow 'Enter' key to send
+            userInput.addEventListener("keypress", (event) => {
                 if (event.key === "Enter") sendMessage();
-            }
-
-            async function uploadFile() {
-                const fileInput = document.getElementById("fileInput");
-                const statusSpan = document.getElementById("uploadStatus");
-                const file = fileInput.files[0];
-
-                if (!file) return;
-
-                statusSpan.textContent = "Uploading...";
-                const formData = new FormData();
-                formData.append("file", file);
-
-                try {
-                    const response = await fetch("/upload", {
-                        method: "POST",
-                        body: formData,
-                    });
-                    const result = await response.text();
-                    statusSpan.textContent = "✅ Done!";
-                    appendMessage(`System: ${result}`, "ai-message");
-                } catch (error) {
-                    statusSpan.textContent = "❌ Error";
-                    console.error(error);
-                }
-            }
+            });
         </script>
     </body>
 </html>

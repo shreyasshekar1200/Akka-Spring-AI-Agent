@@ -23,8 +23,10 @@ public class LLMActor extends AbstractBehavior<LLMActor.Command> {
 
     // This is the message other nodes will send to us
     // It contains the 'query' and a 'replyTo' address so we know where to send the answer
-    public record AskQuestion(String query, ActorRef<String> replyTo) implements
-        Command {}
+    public record AskQuestion(
+        String query,
+        ActorRef<String> replyTo
+    ) implements Command {}
 
     // --- 2. State (Dependencies) ---
     private final RagService ragService;
@@ -61,20 +63,19 @@ public class LLMActor extends AbstractBehavior<LLMActor.Command> {
             .info("LLM Actor received task: {}", command.query);
 
         try {
-            // 1. Call your existing AI Brain
-            // (We combine the streaming response into one String for the actor system)
+            // Change from .generateAnswer(query) to a non-streaming call if possible,
+            // OR simply simplify the retrieval:
             String fullAnswer = ragService
                 .generateAnswer(command.query)
-                .reduce("", (current, next) -> current + next)
-                .block(); // Block here so the actor waits for the full answer
+                .collectList() // Collect all chunks into a list first
+                .map(list -> String.join("", list)) // Join them
+                .block();
 
-            // 2. Send the answer back to whoever asked
             command.replyTo.tell(fullAnswer);
         } catch (Exception e) {
             getContext().getLog().error("AI Failed", e);
             command.replyTo.tell("Error: " + e.getMessage());
         }
-
         return this;
     }
 }
